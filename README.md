@@ -144,6 +144,7 @@ Needs [uv](https://docs.astral.sh/uv/) and [just](https://just.systems/). Everyt
 just setup              # uv sync, then install the pre-commit hooks
 just quick              # CPU smoke test, under 5 minutes
 just train              # full run; flags pass through, e.g. --run-name lr0.1-seed0 --optim.lr 0.1
+just bg train ...       # the same, in a detached tmux session; any recipe works
 just analyze <run>      # baselines, graphs, hidden units, ablations and plots
 just figures            # rebuild the README figures (LaTeX)
 just predict <run>      # classify points with a saved model
