@@ -65,6 +65,8 @@ docstring-quotes = 'double'
 
 [tool.pytest.ini_options]
 testpaths = ['tests']
+# The entry points live at the repo root, not in the package; test_training imports train.py.
+pythonpath = ['.']
 
 [tool.basedpyright]
 typeCheckingMode = 'standard'

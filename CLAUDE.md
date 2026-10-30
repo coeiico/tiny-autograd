@@ -109,8 +109,9 @@ and edit those representations. Everything trains on a single consumer GPU or a 
 `README.md` holds this project's goal, plan and experiments. The full plan, conventions and
 open questions for all 18 repos live in the handoff doc: https://claude.ai/artifact/Qqw5xX4p5R62jhcNjhgKgz
 
-- `src/tiny_autograd/` - the scalar engine, neural-network classes, data and graph
-  visualisation, plus `utils.py` for seeding, run folders and metrics.json.
+- `src/tiny_autograd/` - the scalar engine, neural-network classes, the NumPy tensor engine
+  (`tensor.py`), data and graph visualisation, plus `utils.py` for seeding, run folders and
+  metrics.json.
 - `train.py`, `predict.py`, `analyze.py` - separate CLIs (tyro), so analysis runs on saved
   weights without retraining.
 - `notebooks/` - marimo notebooks, saved as plain `.py` files.
