@@ -2,11 +2,7 @@
 
 **Backpropagation from scratch.** A micrograd-style scalar autograd engine and tiny MLP, built to make loss.backward() stop being magic.
 
-Part of the **Latent Space Project**: 18 small ML repos that test one idea, that neural networks encode concepts and strategy in their latent space, and that we can read and edit those representations. Everything trains on a single consumer GPU or a laptop.
-
-| Roadmap | Phase | Depends on | Status |
-| --- | --- | --- | --- |
-| 1 of 18 | 1. Foundations | Nothing | Not started (scaffolded) |
+**Status:** not started.
 
 A learning exercise in the style of Karpathy's micrograd. Nothing else imports it.
 
@@ -23,7 +19,7 @@ Make `loss.backward()` stop being magic by building backpropagation from scratch
 
 ## Done when
 
-The definition of done every Latent Space Project repo shares:
+The general checklist:
 
 Apply this checklist with the project-specific requirements and exceptions in
 [CLAUDE.md](CLAUDE.md#project-specific-scope).
