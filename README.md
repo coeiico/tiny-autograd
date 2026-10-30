@@ -25,17 +25,13 @@ Make `loss.backward()` stop being magic by building backpropagation from scratch
 
 All runs: two moons with noise 0.15, 100 training points, 200 validation points and 1,000 test points (data seed 0, the same for every run); ReLU; full-batch SGD at learning rate 0.5 for 1,000 steps. The test set was scored once per run, on the final weights.
 
-![Decision boundary](figures/decision-boundary.png)
+![The linear model's and the MLP's decision boundaries over the 1,000 test points](figures/boundary.png)
 
-*Run `default-seed0`. The black line is where the predicted probability crosses 0.5. Train points are large, test points small. 17 test points are misclassified, and only 3 of them lie closer to the other moon's arc than to their own: most errors come from where the boundary runs, not from noise pushing points across.*
+*__Two hidden layers bend the boundary round both moons; a straight line has to cut through their tips.__ Runs `linear-seed0` and `default-seed0`, on the same test points. The solid line is the boundary, the dotted lines are where the model is 90% sure either way, and the hatched side is classified as the lower moon. The linear model's 145 errors sit in the two places where the moons' tips cross its line. Of the MLP's 17 errors, only 3 lie closer to the other moon's arc than to their own, so most come from where the boundary runs, not from noise pushing points across.*
 
-![Linear decision boundary](figures/linear-decision-boundary.png)
+![Validation accuracy of three MLP seeds and the linear model, and the loss of seed 0](figures/curves.png)
 
-*Run `linear-seed0`, the baseline. A single line has to cut through both moons' tips.*
-
-![Training curves](figures/training.png)
-
-*Run `default-seed0`. Validation accuracy passes 97% by step 150 and settles at 98.5%. Training accuracy stops at 99%: the one miss is a lower-moon point at (−0.12, 0.82) that noise pushed to about equal distance from both arcs, and the network doesn't bend round it.*
+*__The MLP passes 97% validation accuracy between steps 125 and 175 and settles at 98.5% on every seed.__ Runs `default-seed0` to `default-seed2` and `linear-seed0`. On the right, seed 0's validation loss levels off near 0.05 while its training loss keeps falling to 0.025; the hatched band between them is the generalisation gap. Training accuracy (not drawn) stops at 99%: the one miss is a lower-moon point at (−0.12, 0.82) that noise pushed to about equal distance from both arcs, and the network doesn't bend round it.*
 
 **The scalar engine matches PyTorch to rounding error.** The tests check every op, a composed graph that reuses intermediates, and every parameter's gradient in a two-layer network against PyTorch in float64. Twenty SGD steps of the scalar MLP track the same steps in PyTorch to a relative error under 10⁻¹⁰.
 
@@ -43,9 +39,9 @@ All runs: two moons with noise 0.15, 100 training points, 200 validation points 
 
 ### What the hidden layers compute
 
-![Hidden units](figures/hidden-units.png)
+![Layer-1 units as the lines they switch on across, and layer-2 units as contour maps](figures/units.png)
 
-*Run `default-seed0`. Each panel shows one hidden unit's activation over the input plane (yellow is high), with the model's decision boundary in white. A layer-1 unit is a ReLU of a weighted sum of the two inputs, so it can only switch on across a straight line. Layer-2 units add up several of those half-planes, so their regions have corners.*
+*__The boundary's two kinks sit on the lines of the units that matter most.__ Run `default-seed0`. A layer-1 unit is a ReLU of a weighted sum of the two inputs, so it switches on across a straight line: (a) draws all 16 of those lines. The three in red cost more than 5 points of test accuracy each when removed, and are hatched on the side where they fire; units 1 and 2 cross at the boundary's peak, and unit 15 runs through its trough. (b) Each layer-2 unit adds up several of those half-planes, so the regions where it fires (contour lines) and stays silent (hatched) have straight edges and corners.*
 
 **The first layer does the essential work in a few units; the second layer spreads it out.** Mean-ablating one hidden unit at a time (freezing it at its average activation over the test set) and rescoring the test set:
 
@@ -56,19 +52,19 @@ All runs: two moons with noise 0.15, 100 training points, 200 validation points 
 | Largest single layer-2 cost | 1.3 points | 1.6 points | 1.6 points |
 | Dead units (never active on a test point) | 1 | 2 | 5 |
 
-![Unit ablations](figures/ablation.png)
+![Accuracy lost when each hidden unit is frozen, sorted by cost, for three seeds](figures/unit-costs.png)
 
-*Run `default-seed0`. Layer 1, left; layer 2, right.*
+*__In every seed a few first-layer units carry the boundary, and no second-layer unit matters on its own.__ Runs `default-seed0` to `default-seed2`. Each unit is frozen at its mean activation in turn and the test set rescored; units are sorted by what that costs, one line per seed. The ringed points cost more than 5 points.*
 
 Removing one of the key first-layer units removes one of the lines the boundary is built from, so the boundary loses a whole segment. No single second-layer unit matters much. That is consistent with several layer-2 units carrying overlapping versions of the same signal. Single-unit ablation can't tell redundancy from irrelevance, though: ablating pairs or groups would.
 
-### The computation graph
+### Backpropagation, drawn
 
-![Graph of one neuron](figures/graph-neuron.png)
+![The computation graph of one ReLU unit, with values forward and gradients backward](figures/backprop.png)
 
-*One active first-layer neuron of `default-seed0` on one test point, after `backward()`. Read it right to left: the output's gradient is 1; relu and + pass it through unchanged; each × hands each input the other input's value, so w₁'s gradient is x₁'s value and vice versa.*
+*__Each gradient is the gradient above it times one local derivative.__ Run `default-seed0`: first-layer unit 2 on the first test point, after `backward()`. Black arrows compute each value from its inputs. Red dashed arrows carry the gradient back, multiplied at each step by that step's local derivative: by x₁ on the way to w₁ (and by w₁ on the way to x₁), by 1 through each sum, and by 1 through the ReLU because z > 0. The formula reads the same chain off for w₁.*
 
-`analyze.py` also draws the full graph for the loss of a 2-2-1 tanh network on one point ([figures/graph-toy-network.png](figures/graph-toy-network.png)). That is as large as a graph gets while staying readable.
+`analyze.py` also writes Graphviz drawings of the computation graph, for one unit and for the whole loss of a 2-2-1 network, into each run's analysis folder.
 
 ### Negative results and limits
 
@@ -128,15 +124,17 @@ Apply this checklist with the project-specific requirements and exceptions in
 just train --run-name default-seed0 --seed 0     # also seed 1 and 2; about 2 minutes each
 just train --run-name linear-seed0 --model.hidden
 just train --run-name tensor-seed0 --engine tensor
-just analyze default-seed0                       # plots, graphs, baselines and ablations in runs/default-seed0/analysis/
+just analyze default-seed0                       # baselines, ablations and figure data in runs/default-seed0/analysis/
 just predict default-seed0 --points 0 1 1 -0.5   # classify points with a saved model
+just figures                                     # rebuild the README figures from figures/data/
 ```
 
-The figures in `figures/` come from `runs/default-seed0/analysis/` and `runs/linear-seed0/analysis/`. Runs record the full config, the data's settings and hash, the commit plus a source snapshot when the tree is dirty, and the Python, NumPy and lockfile versions.
+The README figures are drawn in LaTeX from the files in `figures/data/`, copied from the `analysis/figure-data/` folders of the runs each caption names (`.agents/instructions/figure-design.md` says how). Runs record the full config, the data's settings and hash, the commit plus a source snapshot when the tree is dirty, and the Python, NumPy and lockfile versions.
 
 ## Notes
 
-- The graph drawing needs the Graphviz system package as well as the `graphviz` Python package (`sudo apt install graphviz` or `brew install graphviz`). Without it, `analyze.py` writes the `.dot` source, says so, and skips the PNG.
+- Building the figures needs LuaLaTeX, the Libertinus fonts and `pdftoppm`; the PNGs are committed, so nothing else needs them.
+- The diagnostic graph drawing in `analyze.py` needs the Graphviz system package as well as the `graphviz` Python package (`sudo apt install graphviz` or `brew install graphviz`). Without it, `analyze.py` writes the `.dot` source, says so, and skips the PNG.
 
 ## Quickstart
 
@@ -147,6 +145,7 @@ just setup              # uv sync, then install the pre-commit hooks
 just quick              # CPU smoke test, under 5 minutes
 just train              # full run; flags pass through, e.g. --run-name lr0.1-seed0 --optim.lr 0.1
 just analyze <run>      # baselines, graphs, hidden units, ablations and plots
+just figures            # rebuild the README figures (LaTeX)
 just predict <run>      # classify points with a saved model
 just test               # pytest
 just check              # ruff and basedpyright, as in CI
@@ -177,7 +176,7 @@ tiny-autograd/
 ├── train.py                 CLI; --quick runs the CPU smoke test, --engine picks the engine
 ├── predict.py               load weights and classify points
 ├── analyze.py               baselines, graphs, hidden units, ablations, plots
-├── figures/                 README figures, copied from runs named in their captions
+├── figures/                 README figures: LaTeX sources, the data they read, built PNGs
 ├── notebooks/               marimo notebooks for exploration
 ├── tests/
 └── runs/                    outputs, gitignored

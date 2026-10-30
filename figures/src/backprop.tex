@@ -1,0 +1,45 @@
+\documentclass[border=10pt]{standalone}
+\usepackage{latentfig}
+\input{build/values}
+\begin{document}
+\begin{figurecanvas}
+\begin{tikzpicture}
+% \valuebox[style]{name}{position}{definition}{value}{gradient symbol}{gradient}: a value in the
+% graph, holding what it computes, its value, and the gradient it receives.
+\newcommand{\valuebox}[7][box]{%
+  \node[#1] (#2) at #3 {{\small$#4$}\\[0pt]{\small$#5$}\\[0pt]{\footnotesize\color{spot}$\partial y/\partial #6 = #7$}};}
+\valuebox[inputbox]{w1}{(0, 2.55)}{w_1}{\vwone}{w_1}{\gwone}
+\valuebox[inputbox]{x1}{(0, 0.95)}{x_1}{\vxone}{x_1}{\gxone}
+\valuebox[inputbox]{x2}{(0,-0.95)}{x_2}{\vxtwo}{x_2}{\gxtwo}
+\valuebox[inputbox]{w2}{(0,-2.55)}{w_2}{\vwtwo}{w_2}{\gwtwo}
+\valuebox{p1}{(3.75, 1.75)}{p_1 = w_1 x_1}{\vpone}{p_1}{\gpone}
+\valuebox{p2}{(3.75,-1.75)}{p_2 = w_2 x_2}{\vptwo}{p_2}{\gptwo}
+\valuebox{s}{(7.5, 0)}{s = p_1 + p_2}{\vs}{s}{\gs}
+\valuebox[inputbox]{b}{(10.75,-2.55)}{b}{\vbias}{b}{\gbias}
+\valuebox{z}{(10.75, 0)}{z = s + b}{\vz}{z}{\gz}
+\valuebox{y}{(13.9, 0)}{y = \ReLU(z)}{\vout}{y}{\gout}
+% \link{from}{to}{local derivative}: the forward step, and beside it, offset perpendicular to
+% it, the gradient flowing back, multiplied by the step's local derivative.
+\newcommand{\link}[3]{%
+  \draw[fwd] ($#1!2pt!90:#2$) -- ($#2!2pt!-90:#1$);
+  \draw[back] ($#2!2pt!90:#1$) -- ($#1!2pt!-90:#2$);
+  \node[backlabel] at ($($#1!0.5!#2$)!9pt!-90:#2$) {$\times #3$};}
+\link{(w1.east)}{($(p1.west)+(0,0.2)$)}{x_1}
+\link{(x1.east)}{($(p1.west)+(0,-0.2)$)}{w_1}
+\link{(x2.east)}{($(p2.west)+(0,0.2)$)}{w_2}
+\link{(w2.east)}{($(p2.west)+(0,-0.2)$)}{x_2}
+\link{(p1.east)}{($(s.west)+(0,0.18)$)}{1}
+\link{(p2.east)}{($(s.west)+(0,-0.18)$)}{1}
+\link{(s.east)}{(z.west)}{1}
+\link{(z.east)}{(y.west)}{1}
+\draw[fwd] ($(b.north)+(-0.09,0)$) -- ($(z.south)+(-0.09,0)$);
+\draw[back] ($(z.south)+(0.09,0)$) -- node[backlabel, right] {$\times 1$} ($(b.north)+(0.09,0)$);
+\node[note, anchor=north, align=center] at ($(y.south)+(0,-0.15)$) {ReLU passes the gradient\\because $z = \vz > 0$};
+\node[head] at (-1.1,3.45) {Backpropagation through one neuron.};
+\node[note, anchor=center] at (10.3,2.55) {Forward in black; backward in {\color{spot}red}, times each step's local derivative.};
+\node[note, anchor=center] at (10.3,2.15) {Double-ruled boxes are inputs and parameters.};
+\node[anchor=center, font=\small, text=ink] at (10.3,1.3)
+  {$\dfrac{\partial y}{\partial w_1} = \dfrac{\partial y}{\partial z}\,\dfrac{\partial z}{\partial s}\,\dfrac{\partial s}{\partial p_1}\,\dfrac{\partial p_1}{\partial w_1} = 1 \cdot 1 \cdot 1 \cdot x_1 = \gwone$};
+\end{tikzpicture}
+\end{figurecanvas}
+\end{document}

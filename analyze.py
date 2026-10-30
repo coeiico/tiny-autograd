@@ -5,6 +5,7 @@ Analysis reads saved weights, so it never needs to retrain. Outputs go to
 runs/<run>/<name>/, a new folder, so the training record stays untouched.
 """
 
+import csv
 import json
 import random
 from dataclasses import dataclass
@@ -20,6 +21,7 @@ from tiny_autograd.nn import MLP, accuracy, load_mlp, logistic_loss, mlp_to_dict
 from tiny_autograd.tensor import TensorMLP
 from tiny_autograd.utils import code_state, make_output_dir, save_json
 from tiny_autograd.viz import (
+  graph_record,
   grid,
   plot_ablation,
   plot_curves,
@@ -81,6 +83,31 @@ def main(cfg: Config) -> None:
   test_logits = predict_logits(mlp, test.x)
   test_acc = accuracy(test_logits, test.y)
 
+  # The numbers behind the README figures (figure-design.md): copy a file into figures/data/
+  # to show it there. Named after the run, so several runs can sit side by side.
+  fig_dir = out_dir / 'figure-data'
+  fig_dir.mkdir()
+  tag = cfg.run.name
+  history = train_record['history']
+  with (fig_dir / f'curves-{tag}.csv').open('w', newline='') as f:
+    writer = csv.DictWriter(f, fieldnames=['step', 'train_loss', 'val_loss', 'train_accuracy', 'val_accuracy'])
+    writer.writeheader()
+    for h in history:
+      writer.writerow({k: h[k] for k in writer.fieldnames})
+  xs, ys, points = grid(test, cfg.resolution)
+  np.savez_compressed(
+    fig_dir / f'boundary-{tag}.npz',
+    xs=xs,
+    ys=ys,
+    logits=logits_of(points).reshape(xs.shape),
+    train_x=train.x,
+    train_y=train.y,
+    test_x=test.x,
+    test_y=test.y,
+    test_logits=test_logits,
+    test_accuracy=test_acc,
+  )
+
   # Baselines on the same test set. The untrained model is this run's exact starting point,
   # rebuilt from its seed; the majority class is what you get by ignoring the input.
   untrained = MLP(2, run_cfg['model']['hidden'], run_cfg['model']['nonlin'], random.Random(run_cfg['seed']))
@@ -100,7 +127,6 @@ def main(cfg: Config) -> None:
     f'The {kind} classifies {test_acc:.1%} of {len(test.y)} held-out points correctly',
     cfg.resolution,
   )
-  history = train_record['history']
   plot_curves(
     history,
     out_dir / 'training.png',
@@ -121,18 +147,27 @@ def main(cfg: Config) -> None:
   neuron_out.label = 'output'
   neuron_out.backward()
   graphs = {'neuron': str(save_graph(neuron_out, out_dir / 'graph-neuron'))}
+  save_json(fig_dir / 'graph-neuron.json', graph_record(neuron_out))
   for v in x0:
     v.grad = 0.0  # the inputs are leaves shared with the graph above, so their gradients accumulate
   toy = MLP(2, (2,), 'tanh', random.Random(0))
+  # Name every parameter by layer (superscript), unit and input (subscripts): w¹₁₂ is layer 1,
+  # unit 1, input 2.
+  sup, sub = '¹²³', '₁₂₃₄₅₆₇₈₉'
+  for layer_index, layer in enumerate(toy.layers):
+    for unit, n in enumerate(layer.neurons):
+      for i, w in enumerate(n.w):
+        w.label = f'w{sup[layer_index]}{sub[unit]}{sub[i]}'
+      n.b.label = f'b{sup[layer_index]}{sub[unit]}'
   toy_loss = logistic_loss(toy(x0), int(test.y[0]))
   toy_loss.label = 'loss'
   toy_loss.backward()
   graphs['toy_network'] = str(save_graph(toy_loss, out_dir / 'graph-toy-network'))
+  save_json(fig_dir / 'graph-toy-network.json', graph_record(toy_loss))
 
   hidden_report: list[dict[str, Any]] = []
   if mlp.hidden:
     # What each hidden unit computes over the whole plane: the network's internal picture.
-    xs, ys, points = grid(test, cfg.resolution // 2)
     boundary_logits, hidden_on_grid = model(points, return_hidden=True)
     plot_hidden_units(
       hidden_on_grid,
@@ -165,6 +200,27 @@ def main(cfg: Config) -> None:
       f'largest single-unit ablation drop: {worst["accuracy_drop"]:.3f} (layer {worst["layer"]} unit {worst["unit"]})'
     )
     plot_ablation(hidden_report, test_acc, out_dir / 'ablation.png')
+
+    # Each unit's incoming weights and bias, beside its ablation result: a layer-1 unit is
+    # ReLU(w₁x₁ + w₂x₂ + b), so its weights are the line it switches on across.
+    with (fig_dir / f'units-{tag}.csv').open('w', newline='') as f:
+      writer = csv.writer(f)
+      writer.writerow(['layer', 'unit', 'w1', 'w2', 'b', 'accuracy_drop', 'dead_on_test', 'mean_activation'])
+      for r in hidden_report:
+        neuron = mlp.layers[r['layer'] - 1].neurons[r['unit']]
+        w = [p.data for p in neuron.w] if r['layer'] == 1 else ['', '']
+        writer.writerow([r['layer'], r['unit'], *w, neuron.b.data, r['accuracy_drop'], int(r['dead_on_test']), r['mean_activation']])
+    # The unit maps are drawn small, so half the grid resolution in float32 is plenty and
+    # keeps the committed file small.
+    hxs, hys, hpoints = grid(test, cfg.resolution // 2)
+    h_logits, h_acts = model(hpoints, return_hidden=True)
+    np.savez_compressed(
+      fig_dir / f'hidden-{tag}.npz',
+      xs=hxs,
+      ys=hys,
+      logits=h_logits.data.reshape(hxs.shape).astype(np.float32),
+      **{f'layer{i + 1}': acts.reshape(*hxs.shape, -1).astype(np.float32) for i, acts in enumerate(h_acts)},
+    )
 
   save_json(
     out_dir / 'analysis.json',

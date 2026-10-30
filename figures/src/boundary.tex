@@ -1,0 +1,47 @@
+\documentclass[border=10pt]{standalone}
+\usepackage{latentfig}
+\input{roles}
+\input{build/values}
+\input{build/extent}
+\pgfplotsset{
+  plane/.style={engraved,
+    width=0.41\figwidth, axis equal image,
+    xmin=\xmin, xmax=\xmax, ymin=\ymin, ymax=\ymax,
+    xtick={-1,0,1,2}, ytick={-1,0,1}, xlabel={$x_1$}, ylabel={$x_2$},
+  },
+}
+% \plane{lin|mlp}: the lower-moon region hatched, the 90% lines, the points by class, the
+% errors in spot, and the boundary on top.
+\newcommand{\plane}[1]{%
+  \addplot[draw=none, hatch, empty line=jump] table {build/region-#1.dat};
+  \addplot[level line, empty line=jump] table {build/contour-#1-pos.dat};
+  \addplot[level line, empty line=jump] table {build/contour-#1-neg.dat};
+  \addplot[upper moon] table[x=x, y=y, restrict expr to domain={\thisrow{cls}}{0:0}] {build/points-#1.dat};
+  \addplot[lower moon] table[x=x, y=y, restrict expr to domain={\thisrow{cls}}{1:1}] {build/points-#1.dat};
+  \addplot[marked] table[x=x, y=y, restrict expr to domain={\thisrow{wrong}}{1:1}] {build/points-#1.dat};
+  \addplot[draw=ink, line width=0.9pt, empty line=jump] table {build/contour-#1-zero.dat};
+}
+\begin{document}
+\begin{figurecanvas}
+\begin{tikzpicture}
+\begin{axis}[plane, name=a]
+  \plane{lin}
+  \node[textlabel, knockout] at (axis cs:-1.05,1.45) {upper moon, $\circ$};
+  \node[textlabel, knockout] at (axis cs:2.15,-1.05) {lower moon, $\bullet$};
+\end{axis}
+\begin{axis}[plane, name=b, at={($(a.east)+(1.6cm,0)$)}, anchor=west]
+  \plane{mlp}
+\end{axis}
+\foreach \p/\name/\formula/\acc/\wrong in {
+    a/{Linear model.}/{$\hat{y} = \sigma(\vb{w}\tp\vb{x} + b)$}/\acclin/\wronglin,
+    b/{Two hidden layers, 16 units each.}/{$\hat{y} = \sigma\bigl(\vb{w}_3\tp\ReLU(\mb{W}_2\ReLU(\mb{W}_1\vb{x} + \vb{b}_1) + \vb{b}_2) + b_3\bigr)$}/\accmlp/\wrongmlp} {
+  \node[head] at ($(\p.north west)+(0,0.72)$) {(\p)\enspace\name};
+  \node[formula] at ($(\p.north west)+(0,0.28)$) {\formula};
+  \node[note, anchor=north west] at ($(\p.outer south west)+(0.05,-0.06)$)
+    {\acc\% of \num{\ntest} test points correct; the \wrong\ errors ringed in {\color{spot}red}.};
+}
+\node[note, anchor=north] at ($(a.outer south east)!0.5!(b.outer south west)+(0,-0.55)$)
+  {Hatched: the region classified as lower moon. Dotted: where the model is 90\% sure either way.};
+\end{tikzpicture}
+\end{figurecanvas}
+\end{document}

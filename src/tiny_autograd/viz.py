@@ -38,6 +38,30 @@ def graph(root: Value) -> graphviz.Digraph:
   return dot
 
 
+def graph_record(root: Value) -> dict[str, Any]:
+  """
+  The graph behind root as plain data, inputs first, for drawing the README figure in TikZ.
+
+  Each node has an id, its label, the op that made it, its data and grad, and the ids of its
+  inputs.
+  """
+  order = topological_order(root)
+  ids = {id(node): i for i, node in enumerate(order)}
+  return {
+    'nodes': [
+      {
+        'id': ids[id(node)],
+        'label': node.label,
+        'op': node._op,
+        'data': node.data,
+        'grad': node.grad,
+        'inputs': [ids[id(child)] for child in node._prev],
+      }
+      for node in order
+    ]
+  }
+
+
 def save_graph(root: Value, path: Path) -> Path:
   """
   Write the graph's DOT source, and render it to PNG when Graphviz is installed.

@@ -1,0 +1,41 @@
+\documentclass[border=10pt]{standalone}
+\usepackage{latentfig}
+\pgfplotsset{
+  ranked/.style={engraved,
+    width=0.39\figwidth, height=0.26\figwidth,
+    xmin=0.4, xmax=16.6, ymin=-1.5, ymax=30,
+    xtick={1,4,8,12,16}, ytick={0,5,10,20,30},
+    xlabel={unit, sorted by cost},
+  },
+  % Seeds by line style; each point above the 5-point line is marked in spot.
+  seed 0/.style={series ink, mark=*, mark size=0.9pt, mark options={solid, fill=white}},
+  seed 1/.style={series dashed, mark=square*, mark size=0.8pt, mark options={solid, fill=white}},
+  seed 2/.style={series dotted, mark=triangle*, mark size=1.1pt, mark options={solid, fill=white}},
+}
+% \costs{layer}: the three seeds' sorted costs, the 5-point line, and the costly units in spot.
+\newcommand{\costs}[1]{%
+  \draw[level line] (axis cs:0.4,5) -- (axis cs:16.6,5) node[pos=0.98, anchor=south east, note] {5 points};
+  \addplot[seed 0] table[x=rank, y=l#1s0, col sep=comma] {build/unit-costs.csv};
+  \addplot[seed 1] table[x=rank, y=l#1s1, col sep=comma] {build/unit-costs.csv};
+  \addplot[seed 2] table[x=rank, y=l#1s2, col sep=comma] {build/unit-costs.csv};
+  \foreach \s in {0,1,2} {
+    \addplot[marked] table[x=rank, y=l#1s\s, col sep=comma, restrict expr to domain={\thisrow{l#1s\s}}{5:100}] {build/unit-costs.csv};
+  }
+}
+\begin{document}
+\begin{figurecanvas}
+\begin{tikzpicture}
+\begin{axis}[ranked, name=a, ylabel={test accuracy lost (points)}]
+  \costs{1}
+  \node[note, anchor=north east, align=right] at (axis cs:16,27) {seed 0, solid; seed 1, dashed; seed 2, dotted};
+\end{axis}
+\begin{axis}[ranked, name=b, at={($(a.east -| a.outer east)+(1.75cm,0)$)}, anchor=west]
+  \costs{2}
+\end{axis}
+\node[head] at ($(a.north west)+(0,0.25)$) {(a)\enspace Layer 1: a few units carry the boundary.};
+\node[head] at ($(b.north west)+(0,0.25)$) {(b)\enspace Layer 2: no single unit matters.};
+\node[note, anchor=north] at ($(a.outer south east)!0.5!(b.outer south west)+(0,-0.1)$)
+  {Each unit frozen at its mean activation in turn; red: units whose removal costs more than 5 points.};
+\end{tikzpicture}
+\end{figurecanvas}
+\end{document}
